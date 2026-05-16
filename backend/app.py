@@ -11,7 +11,7 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from dump_parser import DATA_DIR, discover_runs, get_frame
+from .dump_parser import DATA_DIR, discover_runs, get_frame
 
 app = FastAPI(title="LAMMPS Dump Visualizer")
 
