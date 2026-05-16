@@ -20,8 +20,12 @@
   .grp:first-of-type { border-top:0; padding-top:0; }
   label { display:block; margin:8px 0 3px; color:#5b6470; font-size:11px;
           text-transform:uppercase; letter-spacing:.04em; }
-  select, input[type=number] { width:100%; background:var(--field); color:var(--txt);
+  select, input[type=number], input[type=text], input[type=search] {
+          width:100%; background:var(--field); color:var(--txt);
           border:1px solid var(--line); border-radius:5px; padding:6px; }
+  #run { margin-top:6px; }
+  #run option { padding:2px 0; }
+  #runCount { color:#8a929d; font-size:10px; margin-top:4px; }
   input[type=range] { width:100%; }
   .row { display:flex; gap:8px; }
   .row > * { flex:1; }
@@ -46,7 +50,10 @@
 
     <div class="grp">
       <label>Corrida</label>
-      <select id="run"></select>
+      <input type="search" id="runSearch" placeholder="Buscar simulación…"
+             autocomplete="off" />
+      <select id="run" size="8"></select>
+      <div id="runCount"></div>
       <label>Timestep <span class="val" id="stepLbl"></span></label>
       <input type="range" id="step" min="0" max="0" step="1" />
     </div>

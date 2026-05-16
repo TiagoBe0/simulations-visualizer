@@ -12,23 +12,30 @@ con un solo shader (color/filtro/corte en la GPU).
 ## Estructura de datos
 
 ```
-DATA_DIR/
+simulations/
   sp3_20/
     dump.ballistic_ac.sp3_20.0
     dump.ballistic_ac.sp3_20.2000
     ...
-  sp3_40/
+  proyectoA/sp3_40/          # se admiten subcarpetas anidadas
     dump.ballistic_ac.sp3_40.0
     ...
 ```
 
-Cada **carpeta** es una corrida; cada **archivo** `dump.*` es un timestep.
+Cada **carpeta con archivos `dump.*`** es una simulación; cada **archivo**
+`dump.*` es un timestep. La búsqueda es **recursiva**: cualquier
+subdirectorio (a cualquier profundidad) dentro de `simulations/` que
+contenga dumps aparece como una corrida, con su ruta relativa como nombre.
 El número final del nombre se usa como timestep (si no, se lee del header).
-Para agregar datos: copiá una carpeta nueva dentro de `DATA_DIR` y recargá
-la web. No hace falta reiniciar el servidor.
+Para agregar datos: copiá una carpeta nueva dentro de `simulations/` y
+recargá la web. No hace falta reiniciar el servidor.
 
-Por defecto `DATA_DIR` es `./NuevasCorridas`. Cambialo con la variable de
-entorno `DATA_DIR`.
+Por defecto `DATA_DIR` es `./simulations` (se crea solo al arrancar con
+`run.sh`). Cambialo con la variable de entorno `DATA_DIR`.
+
+En el visualizador, el cuadro **Buscar simulación** filtra la lista por
+texto (subcadena, sin distinguir mayúsculas); Enter abre la primera
+coincidencia.
 
 ## Opción A — venv + uvicorn (la más portable)
 

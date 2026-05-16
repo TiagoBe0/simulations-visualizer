@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
 # Arranca el visualizador. Uso:
-#   ./run.sh                 -> http://0.0.0.0:8000, datos en ./NuevasCorridas
+#   ./run.sh                 -> http://0.0.0.0:8000, datos en ./simulations
 #   DATA_DIR=/ruta/datos PORT=9000 ./run.sh
 set -euo pipefail
 cd "$(dirname "$0")"
 
 PORT="${PORT:-8000}"
 HOST="${HOST:-0.0.0.0}"
-export DATA_DIR="${DATA_DIR:-$(pwd)/NuevasCorridas}"
+export DATA_DIR="${DATA_DIR:-$(pwd)/simulations}"
+mkdir -p "$DATA_DIR"
 
 PY=python3
 RUNNER=""

@@ -30,7 +30,8 @@ import numpy as np
 import pandas as pd
 
 # Directory that holds the run sub-directories. Drop new runs in here.
-DATA_DIR = Path(os.environ.get("DATA_DIR", "NuevasCorridas")).resolve()
+# Every simulation lives in its own sub-directory under this folder.
+DATA_DIR = Path(os.environ.get("DATA_DIR", "simulations")).resolve()
 
 # Files we treat as dumps: anything starting with "dump"
 _DUMP_RE = re.compile(r"^dump\b", re.IGNORECASE)
@@ -205,17 +206,29 @@ def _resolve(run: str, step: int) -> Path:
 
 
 def discover_runs() -> list[dict]:
-    """List runs (sub-directories of DATA_DIR with dump files) and their
-    available timesteps."""
+    """List runs and their available timesteps.
+
+    Walks DATA_DIR recursively: any sub-directory (at any depth) that
+    contains dump files is reported as a run. The run "name" is the path
+    of that directory relative to DATA_DIR (POSIX-style), so nested layouts
+    like ``simulations/proyectoA/sp3_20`` work and stay searchable.
+    """
     runs = []
     if not DATA_DIR.is_dir():
         return runs
-    for run_dir in sorted(p for p in DATA_DIR.iterdir() if p.is_dir()):
-        frames = []
-        for f in run_dir.iterdir():
-            if f.is_file() and _DUMP_RE.match(f.name):
-                frames.append({"step": peek_timestep(f), "file": f.name})
-        if frames:
-            frames.sort(key=lambda x: x["step"])
-            runs.append({"name": run_dir.name, "frames": frames})
+    for dirpath, dirnames, filenames in os.walk(DATA_DIR):
+        dirnames.sort()
+        frames = [
+            {"step": peek_timestep(Path(dirpath) / fn), "file": fn}
+            for fn in filenames
+            if _DUMP_RE.match(fn)
+        ]
+        if not frames:
+            continue
+        rel = Path(dirpath).relative_to(DATA_DIR).as_posix()
+        if rel == ".":
+            continue  # simulations always live in a sub-directory
+        frames.sort(key=lambda x: x["step"])
+        runs.append({"name": rel, "frames": frames})
+    runs.sort(key=lambda r: r["name"])
     return runs

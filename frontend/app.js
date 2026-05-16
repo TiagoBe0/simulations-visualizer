@@ -254,13 +254,31 @@ histCanvas.addEventListener("pointerup", (e) => {
 });
 histCanvas.addEventListener("dblclick", clearSelection);
 
+const esc = (s) => s.replace(/[&<>"]/g, (c) =>
+  ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+// Rebuild the run list box, keeping only entries that match the search
+// text (case-insensitive substring). The current run stays selected if
+// it still passes the filter.
+function renderRunOptions(filter = "") {
+  const f = filter.trim().toLowerCase();
+  const list = f ? runs.filter((x) => x.name.toLowerCase().includes(f)) : runs;
+  $("run").innerHTML = list
+    .map((x) => `<option value="${esc(x.name)}">${esc(x.name)}</option>`)
+    .join("");
+  if (current && list.some((x) => x.name === current.name))
+    $("run").value = current.name;
+  $("runCount").textContent =
+    `${list.length} de ${runs.length} simulaciones`;
+  return list;
+}
+
 async function loadRuns() {
   const r = await fetch("api/runs").then((x) => x.json());
   runs = r.runs;
-  $("run").innerHTML = runs
-    .map((x) => `<option>${x.name}</option>`).join("");
+  renderRunOptions();
   if (runs.length) selectRun(runs[0].name);
-  else hud.textContent = `Sin corridas en ${r.data_dir}`;
+  else hud.textContent = `Sin simulaciones en ${r.data_dir}`;
 }
 
 function selectRun(name) {
@@ -365,6 +383,13 @@ function applyFieldRange(field) {
 // UI wiring
 // ---------------------------------------------------------------------------
 $("run").onchange = (e) => { frameCam = true; selectRun(e.target.value); };
+$("runSearch").oninput = (e) => renderRunOptions(e.target.value);
+// Enter on the search box opens the first match.
+$("runSearch").onkeydown = (e) => {
+  if (e.key !== "Enter") return;
+  const first = $("run").options[0];
+  if (first) { frameCam = true; $("run").value = first.value; selectRun(first.value); }
+};
 $("step").oninput = loadFrame;
 $("field").onchange = async () => {
   const q = `run=${encodeURIComponent(current.name)}&step=${current.frames[+$("step").value].step}`;
