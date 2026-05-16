@@ -56,6 +56,14 @@
       <div id="runCount"></div>
       <label>Timestep <span class="val" id="stepLbl"></span></label>
       <input type="range" id="step" min="0" max="0" step="1" />
+      <div class="row" style="margin-top:8px">
+        <button id="play" style="background:var(--accent);color:#fff;border:0;border-radius:5px;padding:7px;cursor:pointer;font-weight:600">▶ Reproducir</button>
+        <button id="stepBack" title="Anterior" style="flex:0 0 38px;background:var(--field);color:var(--txt);border:1px solid var(--line);border-radius:5px;padding:7px;cursor:pointer">⏮</button>
+        <button id="stepFwd" title="Siguiente" style="flex:0 0 38px;background:var(--field);color:var(--txt);border:1px solid var(--line);border-radius:5px;padding:7px;cursor:pointer">⏭</button>
+      </div>
+      <div class="chk"><input type="checkbox" id="loopOn" checked /><label for="loopOn">Repetir en bucle</label></div>
+      <label>Velocidad <span class="val" id="fpsLbl"></span> fps</label>
+      <input type="range" id="fps" min="1" max="30" step="1" value="6" />
     </div>
 
     <div class="grp">

@@ -282,16 +282,52 @@ async function loadRuns() {
 }
 
 function selectRun(name) {
+  setPlay(false);
   current = runs.find((x) => x.name === name);
   const s = $("step");
   s.min = 0; s.max = current.frames.length - 1; s.value = 0;
+  $("play").disabled = current.frames.length < 2;
   loadFrame();
+}
+
+// ---------------------------------------------------------------------------
+// Playback: step through every frame like a movie. Each iteration waits for
+// the frame to fully load (positions + scalar) before advancing, so it never
+// runs ahead of the network; `fps` only paces frames once they're ready.
+// ---------------------------------------------------------------------------
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+let playing = false, playSession = 0;
+
+function setPlay(on) {
+  if (on === playing) return;
+  playing = on;
+  $("play").textContent = on ? "⏸ Pausar" : "▶ Reproducir";
+  if (on) playLoop();
+}
+
+async function playLoop() {
+  const session = ++playSession;
+  while (playing && session === playSession) {
+    const t0 = performance.now();
+    await loadFrame();
+    if (!playing || session !== playSession) break;
+    const s = $("step");
+    let next = +s.value + 1;
+    if (next > +s.max) {
+      if (!$("loopOn").checked) { setPlay(false); break; }
+      next = 0;
+    }
+    s.value = next;
+    const target = 1000 / +$("fps").value;
+    const dt = performance.now() - t0;
+    if (dt < target) await sleep(target - dt);
+  }
 }
 
 let loadToken = 0;
 async function loadFrame() {
   const token = ++loadToken;
-  loading.style.display = "flex";
+  if (!playing) loading.style.display = "flex";
   try {
     const fr = current.frames[+$("step").value];
     $("stepLbl").textContent = fr.step;
@@ -390,7 +426,20 @@ $("runSearch").onkeydown = (e) => {
   const first = $("run").options[0];
   if (first) { frameCam = true; $("run").value = first.value; selectRun(first.value); }
 };
-$("step").oninput = loadFrame;
+$("step").oninput = () => { setPlay(false); loadFrame(); };
+$("play").onclick = () => setPlay(!playing);
+function nudge(d) {
+  setPlay(false);
+  const s = $("step");
+  let v = +s.value + d;
+  v = v < 0 ? +s.max : v > +s.max ? 0 : v;
+  s.value = v;
+  loadFrame();
+}
+$("stepBack").onclick = () => nudge(-1);
+$("stepFwd").onclick = () => nudge(1);
+$("fps").oninput = (e) => $("fpsLbl").textContent = e.target.value;
+$("fpsLbl").textContent = $("fps").value;
 $("field").onchange = async () => {
   const q = `run=${encodeURIComponent(current.name)}&step=${current.frames[+$("step").value].step}`;
   fieldArr = await bin(`api/frame/scalar?${q}&field=${$("field").value}`);
