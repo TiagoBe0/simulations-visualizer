@@ -257,28 +257,113 @@ histCanvas.addEventListener("dblclick", clearSelection);
 const esc = (s) => s.replace(/[&<>"]/g, (c) =>
   ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
-// Rebuild the run list box, keeping only entries that match the search
-// text (case-insensitive substring). The current run stays selected if
-// it still passes the filter.
-function renderRunOptions(filter = "") {
+// ---------------------------------------------------------------------------
+// Run picker as a collapsible directory tree. Run names are POSIX-style
+// relative paths (e.g. "proyectoA/sub/sp3_20"); listing them flat saturates
+// the panel, so we split on "/" and let the user drill into folders. Leaves
+// (and any directory that itself holds dumps) are selectable runs.
+// ---------------------------------------------------------------------------
+const treeExpanded = new Set();  // folder paths the user has opened
+let treeFilter = "";
+
+function buildTree(list) {
+  const root = { children: new Map() };
+  for (const run of list) {
+    const parts = run.name.split("/");
+    let node = root, acc = "";
+    for (const part of parts) {
+      acc = acc ? acc + "/" + part : part;
+      if (!node.children.has(part))
+        node.children.set(part,
+          { name: part, path: acc, children: new Map(), run: null });
+      node = node.children.get(part);
+    }
+    node.run = run;  // this directory contains dump frames
+  }
+  return root;
+}
+
+function renderTreeNodes(node, depth, forceOpen, out) {
+  const kids = [...node.children.values()]
+    .sort((a, b) => a.name.localeCompare(b.name));
+  for (const c of kids) {
+    const hasKids = c.children.size > 0;
+    const open = forceOpen || treeExpanded.has(c.path);
+    const isRun = !!c.run;
+    const sel = isRun && current && current.name === c.path ? " sel" : "";
+    const caret = hasKids ? (open ? "▾" : "▸") : "";
+    const icon = isRun ? "◉" : open ? "▿" : "▹";
+    out.push(
+      `<div class="tnode${sel}" style="padding-left:${6 + depth * 14}px"` +
+      ` data-path="${esc(c.path)}" data-kind="${isRun ? "run" : "dir"}"` +
+      ` data-haskids="${hasKids ? 1 : 0}">` +
+      `<span class="tcaret">${caret}</span>` +
+      `<span class="ticon">${icon}</span>` +
+      `<span class="tlabel">${esc(c.name)}</span>` +
+      (isRun ? `<span class="tmeta">${c.run.frames.length}</span>` : "") +
+      `</div>`);
+    if (hasKids && open) renderTreeNodes(c, depth + 1, forceOpen, out);
+  }
+}
+
+// Rebuild the tree, keeping only runs whose path matches the search text
+// (case-insensitive substring). While filtering, every level is forced
+// open so matches are visible without manual drilling.
+function renderRunTree(filter = "") {
+  treeFilter = filter;
   const f = filter.trim().toLowerCase();
   const list = f ? runs.filter((x) => x.name.toLowerCase().includes(f)) : runs;
-  $("run").innerHTML = list
-    .map((x) => `<option value="${esc(x.name)}">${esc(x.name)}</option>`)
-    .join("");
-  if (current && list.some((x) => x.name === current.name))
-    $("run").value = current.name;
+  const out = [];
+  renderTreeNodes(buildTree(list), 0, !!f, out);
+  $("runTree").innerHTML =
+    out.join("") || `<div class="tempty">Sin coincidencias</div>`;
   $("runCount").textContent =
     `${list.length} de ${runs.length} simulaciones`;
+  const cur = $("runTree").querySelector(".tnode.sel");
+  if (cur) cur.scrollIntoView({ block: "nearest" });
   return list;
 }
+
+// Open every ancestor folder of a run so it shows up after selection.
+function expandAncestors(name) {
+  const parts = name.split("/");
+  let acc = "";
+  for (let i = 0; i < parts.length - 1; i++) {
+    acc = acc ? acc + "/" + parts[i] : parts[i];
+    treeExpanded.add(acc);
+  }
+}
+
+$("runTree").addEventListener("click", (e) => {
+  const row = e.target.closest(".tnode");
+  if (!row) return;
+  const { path, kind } = row.dataset;
+  const hasKids = row.dataset.haskids === "1";
+  const onToggle = e.target.classList.contains("tcaret") ||
+                   e.target.classList.contains("ticon");
+  // Pure folders toggle anywhere; a directory that is also a run toggles
+  // only via its caret/icon so the label still selects the run.
+  if (hasKids && (kind === "dir" || onToggle)) {
+    treeExpanded.has(path)
+      ? treeExpanded.delete(path) : treeExpanded.add(path);
+    renderRunTree(treeFilter);
+  } else if (kind === "run") {
+    frameCam = true;
+    selectRun(path);
+    renderRunTree(treeFilter);
+  }
+});
 
 async function loadRuns() {
   const r = await fetch("api/runs").then((x) => x.json());
   runs = r.runs;
-  renderRunOptions();
-  if (runs.length) selectRun(runs[0].name);
-  else hud.textContent = `Sin simulaciones en ${r.data_dir}`;
+  if (runs.length) {
+    expandAncestors(runs[0].name);
+    selectRun(runs[0].name);
+  } else {
+    hud.textContent = `Sin simulaciones en ${r.data_dir}`;
+  }
+  renderRunTree();
 }
 
 function selectRun(name) {
@@ -287,8 +372,53 @@ function selectRun(name) {
   const s = $("step");
   s.min = 0; s.max = current.frames.length - 1; s.value = 0;
   $("play").disabled = current.frames.length < 2;
+  renderRunFiles();
   loadFrame();
 }
+
+// ---------------------------------------------------------------------------
+// Simulation scripts (.in / .txt / .lammps) of the selected run, so a
+// reviewer can see which script produced the simulation. Clicking one
+// opens a read-only text viewer.
+// ---------------------------------------------------------------------------
+function renderRunFiles() {
+  const sc = (current && current.scripts) || [];
+  $("runFiles").innerHTML = sc.length
+    ? `<label>Archivos de simulación</label>` + sc.map((f) =>
+        `<button class="fbtn" data-file="${esc(f)}">` +
+        `<span class="ficon">📄</span>` +
+        `<span class="flabel">${esc(f)}</span></button>`).join("")
+    : "";
+}
+
+async function openScript(run, file) {
+  $("fileName").textContent = `${run} / ${file}`;
+  $("fileBody").textContent = "Cargando…";
+  $("fileView").style.display = "flex";
+  try {
+    const q = `run=${encodeURIComponent(run)}&file=${encodeURIComponent(file)}`;
+    $("fileDl").href = `api/runs/script/download?${q}`;
+    $("fileDl").setAttribute("download", file);
+    const r = await fetch(`api/runs/script?${q}`);
+    if (!r.ok) throw new Error(await r.text());
+    $("fileBody").textContent = (await r.json()).content;
+  } catch (e) {
+    $("fileBody").textContent = "Error: " + e.message;
+  }
+}
+function closeFile() { $("fileView").style.display = "none"; }
+
+$("runFiles").addEventListener("click", (e) => {
+  const b = e.target.closest(".fbtn");
+  if (b && current) openScript(current.name, b.dataset.file);
+});
+$("fileClose").onclick = closeFile;
+$("fileView").addEventListener("click", (e) => {
+  if (e.target.id === "fileView") closeFile();  // click on backdrop
+});
+addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && $("fileView").style.display === "flex") closeFile();
+});
 
 // ---------------------------------------------------------------------------
 // Playback: step through every frame like a movie. Each iteration waits for
@@ -418,13 +548,19 @@ function applyFieldRange(field) {
 // ---------------------------------------------------------------------------
 // UI wiring
 // ---------------------------------------------------------------------------
-$("run").onchange = (e) => { frameCam = true; selectRun(e.target.value); };
-$("runSearch").oninput = (e) => renderRunOptions(e.target.value);
-// Enter on the search box opens the first match.
+$("runSearch").oninput = (e) => renderRunTree(e.target.value);
+// Enter on the search box opens the first matching run.
 $("runSearch").onkeydown = (e) => {
   if (e.key !== "Enter") return;
-  const first = $("run").options[0];
-  if (first) { frameCam = true; $("run").value = first.value; selectRun(first.value); }
+  const f = $("runSearch").value.trim().toLowerCase();
+  const first = (f ? runs.filter((x) => x.name.toLowerCase().includes(f))
+                   : runs)[0];
+  if (first) {
+    frameCam = true;
+    expandAncestors(first.name);
+    selectRun(first.name);
+    renderRunTree($("runSearch").value);
+  }
 };
 $("step").oninput = () => { setPlay(false); loadFrame(); };
 $("play").onclick = () => setPlay(!playing);
@@ -438,6 +574,17 @@ function nudge(d) {
 }
 $("stepBack").onclick = () => nudge(-1);
 $("stepFwd").onclick = () => nudge(1);
+$("frameDl").onclick = () => {
+  if (!current) return;
+  const fr = current.frames[+$("step").value];
+  const q = `run=${encodeURIComponent(current.name)}&step=${fr.step}`;
+  const a = document.createElement("a");
+  a.href = `api/frame/download?${q}`;
+  a.download = "";                       // let the server name the file
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+};
 $("fps").oninput = (e) => $("fpsLbl").textContent = e.target.value;
 $("fpsLbl").textContent = $("fps").value;
 $("field").onchange = async () => {

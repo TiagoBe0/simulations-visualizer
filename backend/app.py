@@ -11,7 +11,14 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from .dump_parser import DATA_DIR, discover_runs, get_frame
+from .dump_parser import (
+    DATA_DIR,
+    discover_runs,
+    frame_path,
+    get_frame,
+    get_script,
+    script_path,
+)
 
 app = FastAPI(title="LAMMPS Dump Visualizer")
 
@@ -22,6 +29,46 @@ FRONTEND = Path(__file__).resolve().parent.parent / "frontend"
 def api_runs():
     """All runs found under DATA_DIR and their available timesteps."""
     return {"data_dir": str(DATA_DIR), "runs": discover_runs()}
+
+
+@app.get("/api/runs/script")
+def api_script(run: str = Query(...), file: str = Query(...)):
+    """Text content of a simulation script (.in/.txt/.lammps) in a run dir."""
+    try:
+        return {"run": run, "file": file, "content": get_script(run, file)}
+    except FileNotFoundError:
+        raise HTTPException(404, f"script not found: {run}/{file}")
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@app.get("/api/runs/script/download")
+def api_script_download(run: str = Query(...), file: str = Query(...)):
+    """Download a simulation script as a file attachment."""
+    try:
+        path = script_path(run, file)
+    except FileNotFoundError:
+        raise HTTPException(404, f"script not found: {run}/{file}")
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return FileResponse(
+        path, filename=path.name, media_type="application/octet-stream"
+    )
+
+
+@app.get("/api/frame/download")
+def api_frame_download(run: str = Query(...), step: int = Query(...)):
+    """Download the original LAMMPS dump file for a timestep."""
+    try:
+        path = frame_path(run, step)
+    except FileNotFoundError:
+        raise HTTPException(404, f"frame not found: {run} @ {step}")
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    fname = f"{run.replace('/', '_')}_{path.name}"
+    return FileResponse(
+        path, filename=fname, media_type="application/octet-stream"
+    )
 
 
 def _load(run: str, step: int):

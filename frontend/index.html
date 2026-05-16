@@ -23,9 +23,57 @@
   select, input[type=number], input[type=text], input[type=search] {
           width:100%; background:var(--field); color:var(--txt);
           border:1px solid var(--line); border-radius:5px; padding:6px; }
-  #run { margin-top:6px; }
-  #run option { padding:2px 0; }
+  .tree { margin-top:6px; max-height:260px; overflow:auto; user-select:none;
+          background:var(--field); border:1px solid var(--line);
+          border-radius:5px; padding:4px 0; }
+  .tnode { display:flex; align-items:center; gap:4px; cursor:pointer;
+           white-space:nowrap; font-size:12px; padding:3px 8px 3px 0;
+           line-height:1.5; }
+  .tnode:hover { background:#eef1f5; }
+  .tnode.sel { background:#dceaff; color:var(--accent); font-weight:600; }
+  .tcaret { flex:0 0 12px; text-align:center; color:#8a929d; font-size:10px; }
+  .ticon  { flex:0 0 15px; text-align:center; color:#8a929d; font-size:11px; }
+  .tnode.sel .ticon { color:var(--accent); }
+  .tlabel { flex:0 1 auto; overflow:hidden; text-overflow:ellipsis; }
+  .tmeta  { margin-left:auto; padding-left:10px; color:#8a929d;
+            font-size:10px; font-variant-numeric:tabular-nums; }
+  .tnode.sel .tmeta { color:var(--accent); }
+  .tempty { color:#8a929d; font-size:11px; padding:8px; }
   #runCount { color:#8a929d; font-size:10px; margin-top:4px; }
+  #runFiles { margin-top:10px; }
+  .fbtn { display:flex; align-items:center; gap:7px; width:100%;
+          text-align:left; background:var(--field); color:var(--txt);
+          border:1px solid var(--line); border-radius:5px; padding:6px 8px;
+          margin-top:4px; cursor:pointer; font-size:12px; }
+  .fbtn:hover { border-color:var(--accent); color:var(--accent); }
+  .fbtn .ficon { flex:0 0 auto; color:#8a929d; }
+  .fbtn:hover .ficon { color:var(--accent); }
+  .fbtn .flabel { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  #fileView { position:fixed; inset:0; z-index:20; display:none;
+              align-items:center; justify-content:center; padding:32px;
+              background:rgba(28,33,40,.45); }
+  #fileBox { background:var(--panel); border:1px solid var(--line);
+             border-radius:8px; width:min(920px,100%); max-height:100%;
+             display:flex; flex-direction:column;
+             box-shadow:0 10px 34px rgba(0,0,0,.22); }
+  #fileHead { display:flex; align-items:center; gap:12px; padding:10px 14px;
+              border-bottom:1px solid var(--line); }
+  #fileName { flex:1; font-weight:600; font-size:13px; overflow:hidden;
+              text-overflow:ellipsis; white-space:nowrap; }
+  #fileHead a, #fileClose { background:var(--field); color:var(--txt);
+               border:1px solid var(--line); border-radius:5px;
+               padding:4px 10px; cursor:pointer; font-size:13px;
+               text-decoration:none; }
+  #fileHead a:hover, #fileClose:hover { border-color:var(--accent);
+               color:var(--accent); }
+  .dlbtn { width:100%; margin-top:8px; background:var(--field);
+           color:var(--txt); border:1px solid var(--line);
+           border-radius:5px; padding:7px; cursor:pointer; font-size:12px; }
+  .dlbtn:hover { border-color:var(--accent); color:var(--accent); }
+  .dlbtn:disabled { opacity:.5; cursor:default; }
+  #fileBody { margin:0; padding:14px; overflow:auto; font-size:12px;
+              line-height:1.45; white-space:pre; tab-size:4;
+              font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
   input[type=range] { width:100%; }
   .row { display:flex; gap:8px; }
   .row > * { flex:1; }
@@ -52,8 +100,9 @@
       <label>Corrida</label>
       <input type="search" id="runSearch" placeholder="Buscar simulación…"
              autocomplete="off" />
-      <select id="run" size="8"></select>
+      <div id="runTree" class="tree"></div>
       <div id="runCount"></div>
+      <div id="runFiles"></div>
       <label>Timestep <span class="val" id="stepLbl"></span></label>
       <input type="range" id="step" min="0" max="0" step="1" />
       <div class="row" style="margin-top:8px">
@@ -64,6 +113,7 @@
       <div class="chk"><input type="checkbox" id="loopOn" checked /><label for="loopOn">Repetir en bucle</label></div>
       <label>Velocidad <span class="val" id="fpsLbl"></span> fps</label>
       <input type="range" id="fps" min="1" max="30" step="1" value="6" />
+      <button id="frameDl" class="dlbtn" title="Descargar el dump de este timestep">⤓ Descargar este frame</button>
     </div>
 
     <div class="grp">
@@ -115,6 +165,17 @@
       <input type="range" id="psize" min="0.2" max="6" step="0.1" value="1.6" />
       <div class="chk"><input type="checkbox" id="boxOn" checked /><label for="boxOn">Mostrar caja</label></div>
     </div>
+  </div>
+</div>
+
+<div id="fileView">
+  <div id="fileBox">
+    <div id="fileHead">
+      <span id="fileName"></span>
+      <a id="fileDl" download title="Descargar archivo">⤓ Descargar</a>
+      <button id="fileClose" title="Cerrar (Esc)">✕ Cerrar</button>
+    </div>
+    <pre id="fileBody"></pre>
   </div>
 </div>
 

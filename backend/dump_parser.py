@@ -35,6 +35,11 @@ DATA_DIR = Path(os.environ.get("DATA_DIR", "simulations")).resolve()
 
 # Files we treat as dumps: anything starting with "dump"
 _DUMP_RE = re.compile(r"^dump\b", re.IGNORECASE)
+# Simulation scripts/inputs shown so a reviewer can see which script a run
+# came from: *.in, *.txt, *.lammps, plus LAMMPS' "in.*" naming convention.
+_SCRIPT_RE = re.compile(r"\.(in|txt|lammps)$|^in\.", re.IGNORECASE)
+# Don't serve scripts larger than this (defensive cap for the text viewer).
+_MAX_SCRIPT_BYTES = 4 * 1024 * 1024
 # Trailing ".<number>" of a filename is used as a cheap timestep label.
 _STEP_RE = re.compile(r"\.(\d+)$")
 
@@ -229,6 +234,41 @@ def discover_runs() -> list[dict]:
         if rel == ".":
             continue  # simulations always live in a sub-directory
         frames.sort(key=lambda x: x["step"])
-        runs.append({"name": rel, "frames": frames})
+        scripts = sorted(
+            fn for fn in filenames
+            if _SCRIPT_RE.search(fn) and not _DUMP_RE.match(fn)
+        )
+        runs.append({"name": rel, "frames": frames, "scripts": scripts})
     runs.sort(key=lambda r: r["name"])
     return runs
+
+
+def script_path(run: str, name: str) -> Path:
+    """Validated absolute path to a run's script file.
+
+    The file name must be a plain filename inside the run directory (no
+    traversal) and match the script patterns served by :data:`_SCRIPT_RE`.
+    """
+    run_dir = _safe_run_dir(run)
+    if "/" in name or "\\" in name or name in ("", ".", ".."):
+        raise ValueError("invalid file name")
+    if not _SCRIPT_RE.search(name):
+        raise ValueError("not a simulation script")
+    path = (run_dir / name).resolve()
+    if path.parent != run_dir or not path.is_file():
+        raise FileNotFoundError(name)
+    return path
+
+
+def get_script(run: str, name: str) -> str:
+    """Read a simulation script from a run directory as text (size-capped
+    for the in-browser preview; downloads use :func:`script_path`)."""
+    path = script_path(run, name)
+    if path.stat().st_size > _MAX_SCRIPT_BYTES:
+        raise ValueError("file too large to preview")
+    return path.read_text(errors="replace")
+
+
+def frame_path(run: str, step: int) -> Path:
+    """Absolute path to the dump file for a run's timestep (download)."""
+    return _resolve(run, step)
