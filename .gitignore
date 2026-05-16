@@ -3,3 +3,10 @@ node_modules/
 __pycache__/
 *.pyc
 visualizer.log
+
+# Datos de simulaciones (no se suben a GitHub)
+simulations/*
+!simulations/.gitkeep
+
+# Instalador de Miniconda
+Miniconda3-latest-Linux-x86_64.sh
