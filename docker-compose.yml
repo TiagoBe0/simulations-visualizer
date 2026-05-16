@@ -1,0 +1,9 @@
+services:
+  visualizer:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      # Cambiá la ruta de la izquierda por el directorio donde subís los dumps.
+      - ./NuevasCorridas:/data:ro
+    restart: unless-stopped

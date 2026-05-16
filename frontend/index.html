@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Visualizador de dumps LAMMPS</title>
+<style>
+  :root { --bg:#f4f5f7; --panel:#ffffff; --line:#d4d8de; --txt:#1c2128;
+          --accent:#1e6fe0; --field:#f7f8fa; }
+  * { box-sizing:border-box; }
+  html,body { margin:0; height:100%; background:var(--bg); color:var(--txt);
+              font:13px/1.4 system-ui,Segoe UI,Roboto,sans-serif; overflow:hidden; }
+  #app { display:flex; height:100%; }
+  #view { flex:1; position:relative; }
+  #view canvas { display:block; }
+  #panel { width:300px; background:var(--panel); border-left:1px solid var(--line);
+           padding:14px; overflow-y:auto; }
+  #panel h1 { font-size:14px; margin:0 0 12px; font-weight:600; }
+  .grp { border-top:1px solid var(--line); padding:12px 0; }
+  .grp:first-of-type { border-top:0; padding-top:0; }
+  label { display:block; margin:8px 0 3px; color:#5b6470; font-size:11px;
+          text-transform:uppercase; letter-spacing:.04em; }
+  select, input[type=number] { width:100%; background:var(--field); color:var(--txt);
+          border:1px solid var(--line); border-radius:5px; padding:6px; }
+  input[type=range] { width:100%; }
+  .row { display:flex; gap:8px; }
+  .row > * { flex:1; }
+  .chk { display:flex; align-items:center; gap:6px; margin:8px 0 3px; }
+  .chk label { margin:0; }
+  .val { color:var(--accent); font-variant-numeric:tabular-nums; }
+  #hud { position:absolute; left:12px; top:12px; background:rgba(255,255,255,.82);
+         border:1px solid var(--line); padding:7px 10px; border-radius:6px;
+         font-size:12px; pointer-events:none; }
+  #loading { position:absolute; inset:0; display:none; align-items:center;
+             justify-content:center; background:rgba(244,245,247,.65); font-size:14px; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="view">
+    <div id="hud">—</div>
+    <div id="loading">Cargando…</div>
+  </div>
+  <div id="panel">
+    <h1>Visualizador LAMMPS</h1>
+
+    <div class="grp">
+      <label>Corrida</label>
+      <select id="run"></select>
+      <label>Timestep <span class="val" id="stepLbl"></span></label>
+      <input type="range" id="step" min="0" max="0" step="1" />
+    </div>
+
+    <div class="grp">
+      <label>Colorear por</label>
+      <select id="field"></select>
+      <label>Paleta</label>
+      <select id="cmap">
+        <option value="0">Turbo</option>
+        <option value="1">Viridis</option>
+        <option value="2">Escala de grises</option>
+      </select>
+      <div class="row">
+        <div><label>Mín</label><input type="number" id="vmin" step="any" /></div>
+        <div><label>Máx</label><input type="number" id="vmax" step="any" /></div>
+      </div>
+      <button id="vreset" style="margin-top:8px;width:100%;background:var(--field);color:var(--txt);border:1px solid var(--line);border-radius:5px;padding:6px;cursor:pointer">Auto rango</button>
+    </div>
+
+    <div class="grp">
+      <div class="chk"><input type="checkbox" id="filtOn" /><label for="filtOn">Filtrar por rango</label></div>
+      <label>Histograma <span class="val" id="histInfo"></span></label>
+      <canvas id="hist" width="272" height="120"
+              style="width:100%;height:120px;background:var(--field);border:1px solid var(--line);border-radius:5px;cursor:crosshair;touch-action:none"></canvas>
+      <div style="font-size:10px;color:#8a929d;margin-top:4px">Arrastrá para seleccionar un rango · doble clic para limpiar</div>
+      <div class="chk"><input type="checkbox" id="histLog" /><label for="histLog">Eje Y logarítmico</label></div>
+      <div class="row">
+        <div><label>Desde</label><input type="number" id="fmin" step="any" /></div>
+        <div><label>Hasta</label><input type="number" id="fmax" step="any" /></div>
+      </div>
+    </div>
+
+    <div class="grp">
+      <label>Plano de corte</label>
+      <select id="sliceAxis">
+        <option value="-1">Sin corte</option>
+        <option value="0">Eje X</option>
+        <option value="1">Eje Y</option>
+        <option value="2">Eje Z</option>
+      </select>
+      <label>Posición <span class="val" id="sliceLbl"></span></label>
+      <input type="range" id="slicePos" min="0" max="1" step="0.001" value="0.5" />
+      <label>Espesor <span class="val" id="sliceThickLbl"></span></label>
+      <input type="range" id="sliceThick" min="0.005" max="1" step="0.005" value="0.1" />
+      <div class="chk"><input type="checkbox" id="sliceFlip" /><label for="sliceFlip">Invertir (excluir lámina)</label></div>
+    </div>
+
+    <div class="grp">
+      <label>Tamaño de punto <span class="val" id="psLbl"></span></label>
+      <input type="range" id="psize" min="0.2" max="6" step="0.1" value="1.6" />
+      <div class="chk"><input type="checkbox" id="boxOn" checked /><label for="boxOn">Mostrar caja</label></div>
+    </div>
+  </div>
+</div>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+}}
+</script>
+<script type="module" src="app.js"></script>
+</body>
+</html>
