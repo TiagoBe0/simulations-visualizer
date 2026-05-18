@@ -23,6 +23,33 @@ from .dump_parser import (
 app = FastAPI(title="LAMMPS Dump Visualizer")
 
 FRONTEND = Path(__file__).resolve().parent.parent / "frontend"
+FIGURES_DIR = Path(__file__).resolve().parent.parent / "figures"
+
+_IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp"}
+_IMAGE_MEDIA = {
+    ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+    ".gif": "image/gif", ".svg": "image/svg+xml", ".webp": "image/webp",
+}
+
+
+def _walk_figures(path: Path, rel: str) -> dict:
+    node: dict = {"name": path.name, "path": rel, "type": "dir", "children": []}
+    try:
+        items = sorted(path.iterdir(), key=lambda p: (p.is_file(), p.name.lower()))
+        for child in items:
+            child_rel = f"{rel}/{child.name}"
+            if child.is_dir():
+                node["children"].append(_walk_figures(child, child_rel))
+            elif child.is_file():
+                node["children"].append({
+                    "name": child.name,
+                    "path": child_rel,
+                    "type": "file",
+                    "ext": child.suffix.lower(),
+                })
+    except PermissionError:
+        pass
+    return node
 
 
 @app.get("/api/runs")
@@ -141,6 +168,42 @@ def api_histogram(
         "counts": counts.astype(int).tolist(),
         "total": int(arr.size),
     }
+
+
+@app.get("/api/figures")
+def api_figures():
+    """Recursive directory tree of the figures/ folder."""
+    if not FIGURES_DIR.exists():
+        return {"children": []}
+    root: dict = {"children": []}
+    items = sorted(FIGURES_DIR.iterdir(), key=lambda p: (p.is_file(), p.name.lower()))
+    for item in items:
+        if item.is_dir():
+            root["children"].append(_walk_figures(item, item.name))
+        elif item.is_file():
+            root["children"].append({
+                "name": item.name,
+                "path": item.name,
+                "type": "file",
+                "ext": item.suffix.lower(),
+            })
+    return root
+
+
+@app.get("/api/figures/image")
+def api_figures_image(path: str = Query(...)):
+    """Serve an image file from the figures/ directory."""
+    try:
+        target = (FIGURES_DIR / path).resolve()
+        target.relative_to(FIGURES_DIR.resolve())
+    except ValueError:
+        raise HTTPException(400, "Invalid path")
+    if not target.exists() or not target.is_file():
+        raise HTTPException(404, "File not found")
+    ext = target.suffix.lower()
+    if ext not in _IMAGE_MEDIA:
+        raise HTTPException(400, "Not a supported image format")
+    return FileResponse(target, media_type=_IMAGE_MEDIA[ext])
 
 
 @app.get("/")

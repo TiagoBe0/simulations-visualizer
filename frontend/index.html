@@ -85,6 +85,49 @@
          font-size:12px; pointer-events:none; }
   #loading { position:absolute; inset:0; display:none; align-items:center;
              justify-content:center; background:rgba(244,245,247,.65); font-size:14px; }
+
+  /* Tabs */
+  #tabBar { display:flex; gap:4px; margin-bottom:12px; }
+  .tab { flex:1; background:var(--field); color:var(--txt);
+         border:1px solid var(--line); border-radius:5px;
+         padding:6px; cursor:pointer; font-size:12px; font-weight:500; }
+  .tab.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+  .tab:hover:not(.active) { border-color:var(--accent); color:var(--accent); }
+
+  /* Figures panel */
+  #figPanel { display:none; padding-top:2px; }
+  .tnode.fig-img { cursor:pointer; }
+  .tnode.fig-img .ticon { color:#1e6fe0; }
+  .tnode.fig-img:hover { background:#eef1f5; }
+  .tnode.fig-other { opacity:.5; cursor:default; }
+  .tnode.fig-other:hover { background:none; }
+
+  /* Image viewer modal */
+  #imageView { position:fixed; inset:0; z-index:30; display:none;
+               flex-direction:column; background:rgba(12,14,18,.92); }
+  #imageHead { display:flex; align-items:center; gap:10px; padding:9px 14px;
+               border-bottom:1px solid rgba(255,255,255,.12); flex-shrink:0; }
+  #imageName { flex:1; font-size:12px; color:#9aa5b4; overflow:hidden;
+               text-overflow:ellipsis; white-space:nowrap; }
+  #imageHead a, #imageClose { background:rgba(255,255,255,.1); color:#c9d1d9;
+               border:1px solid rgba(255,255,255,.18); border-radius:5px;
+               padding:4px 10px; cursor:pointer; font-size:12px;
+               text-decoration:none; white-space:nowrap; }
+  #imageHead a:hover, #imageClose:hover { background:rgba(255,255,255,.2); color:#fff; }
+  #imageBody { flex:1; overflow:hidden; position:relative; cursor:grab;
+               display:flex; align-items:center; justify-content:center;
+               touch-action:none; }
+  #imageBody.dragging { cursor:grabbing; }
+  #imageEl { max-width:90vw; max-height:85vh; object-fit:contain; display:block;
+             transform-origin:center center; user-select:none; pointer-events:none;
+             transition:none; }
+  #imageZoomLbl { position:absolute; bottom:10px; left:12px;
+                  color:rgba(255,255,255,.45); font-size:11px; pointer-events:none; }
+  #imageZoomReset { position:absolute; bottom:10px; right:12px;
+                    background:rgba(255,255,255,.12); color:rgba(255,255,255,.7);
+                    border:1px solid rgba(255,255,255,.18); border-radius:5px;
+                    padding:3px 9px; cursor:pointer; font-size:11px; }
+  #imageZoomReset:hover { background:rgba(255,255,255,.22); }
 </style>
 </head>
 <body>
@@ -94,8 +137,12 @@
     <div id="loading">Cargando…</div>
   </div>
   <div id="panel">
-    <h1>Visualizador LAMMPS</h1>
+    <div id="tabBar">
+      <button id="tabSim" class="tab active">Simulaciones</button>
+      <button id="tabFig" class="tab">Figuras</button>
+    </div>
 
+  <div id="simPanel">
     <div class="grp">
       <label>Corrida</label>
       <input type="search" id="runSearch" placeholder="Buscar simulación…"
@@ -165,7 +212,18 @@
       <input type="range" id="psize" min="0.2" max="6" step="0.1" value="1.6" />
       <div class="chk"><input type="checkbox" id="boxOn" checked /><label for="boxOn">Mostrar caja</label></div>
     </div>
-  </div>
+  </div><!-- /simPanel -->
+
+  <div id="figPanel">
+    <div class="grp" style="border-top:0;padding-top:0">
+      <label>Buscar figura</label>
+      <input type="search" id="figSearch" placeholder="Buscar archivo o carpeta…"
+             autocomplete="off" />
+      <div id="figTree" class="tree" style="max-height:calc(100vh - 160px)"></div>
+    </div>
+  </div><!-- /figPanel -->
+
+  </div><!-- /panel -->
 </div>
 
 <div id="fileView">
@@ -176,6 +234,19 @@
       <button id="fileClose" title="Cerrar (Esc)">✕ Cerrar</button>
     </div>
     <pre id="fileBody"></pre>
+  </div>
+</div>
+
+<div id="imageView">
+  <div id="imageHead">
+    <span id="imageName"></span>
+    <a id="imageDl" download title="Descargar imagen">⤓ Descargar</a>
+    <button id="imageClose" title="Cerrar (Esc)">✕ Cerrar</button>
+  </div>
+  <div id="imageBody">
+    <img id="imageEl" alt="" />
+    <span id="imageZoomLbl">100%</span>
+    <button id="imageZoomReset" title="Restaurar vista (doble clic)">⌂ Encuadrar</button>
   </div>
 </div>
 

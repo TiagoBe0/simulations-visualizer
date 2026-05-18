@@ -417,7 +417,9 @@ $("fileView").addEventListener("click", (e) => {
   if (e.target.id === "fileView") closeFile();  // click on backdrop
 });
 addEventListener("keydown", (e) => {
-  if (e.key === "Escape" && $("fileView").style.display === "flex") closeFile();
+  if (e.key !== "Escape") return;
+  if ($("imageView").style.display === "flex") closeImageView();
+  else if ($("fileView").style.display === "flex") closeFile();
 });
 
 // ---------------------------------------------------------------------------
@@ -639,6 +641,171 @@ function updateSlice() {
     $("sliceThickLbl").textContent = "";
   }
 }
+
+// ---------------------------------------------------------------------------
+// Tab switching
+// ---------------------------------------------------------------------------
+function switchTab(tab) {
+  if (tab === "sim") {
+    $("simPanel").style.display = "block";
+    $("figPanel").style.display = "none";
+    $("tabSim").classList.add("active");
+    $("tabFig").classList.remove("active");
+  } else {
+    $("simPanel").style.display = "none";
+    $("figPanel").style.display = "block";
+    $("tabSim").classList.remove("active");
+    $("tabFig").classList.add("active");
+    if (!figTree) loadFigures();
+  }
+}
+$("tabSim").onclick = () => switchTab("sim");
+$("tabFig").onclick = () => switchTab("fig");
+
+// ---------------------------------------------------------------------------
+// Figures browser
+// ---------------------------------------------------------------------------
+const IMG_EXTS = new Set([".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp"]);
+let figTree = null;
+const figExpanded = new Set();
+let figFilter = "";
+
+function isImgNode(node) {
+  return node.type === "file" && IMG_EXTS.has(node.ext);
+}
+
+async function loadFigures() {
+  $("figTree").innerHTML = `<div class="tempty">Cargando…</div>`;
+  try {
+    figTree = await fetch("api/figures").then((x) => x.json());
+    renderFigTree();
+  } catch (e) {
+    $("figTree").innerHTML = `<div class="tempty">Error: ${e.message}</div>`;
+  }
+}
+
+function nodeMatchesFilter(node, f) {
+  if (node.name.toLowerCase().includes(f)) return true;
+  if (node.type === "dir")
+    return (node.children || []).some((c) => nodeMatchesFilter(c, f));
+  return false;
+}
+
+function renderFigNodes(nodes, depth, forceOpen, f, out) {
+  const sorted = [...nodes].sort((a, b) => {
+    if (a.type !== b.type) return a.type === "dir" ? -1 : 1;
+    return a.name.localeCompare(b.name);
+  });
+  for (const node of sorted) {
+    if (f && !nodeMatchesFilter(node, f)) continue;
+    if (node.type === "dir") {
+      const open = forceOpen || figExpanded.has(node.path);
+      out.push(
+        `<div class="tnode" style="padding-left:${6 + depth * 14}px"` +
+        ` data-figpath="${esc(node.path)}" data-figkind="dir">` +
+        `<span class="tcaret">${open ? "▾" : "▸"}</span>` +
+        `<span class="ticon">${open ? "▿" : "▹"}</span>` +
+        `<span class="tlabel">${esc(node.name)}</span></div>`
+      );
+      if (open && node.children)
+        renderFigNodes(node.children, depth + 1, forceOpen, f, out);
+    } else {
+      const img = isImgNode(node);
+      out.push(
+        `<div class="tnode ${img ? "fig-img" : "fig-other"}"` +
+        ` style="padding-left:${6 + depth * 14}px"` +
+        ` data-figpath="${esc(node.path)}" data-figkind="file"` +
+        ` data-figimg="${img ? 1 : 0}">` +
+        `<span class="tcaret"></span>` +
+        `<span class="ticon">${img ? "◈" : "▪"}</span>` +
+        `<span class="tlabel">${esc(node.name)}</span></div>`
+      );
+    }
+  }
+}
+
+function renderFigTree(filter = "") {
+  figFilter = filter;
+  const f = filter.trim().toLowerCase();
+  if (!figTree) return;
+  const out = [];
+  renderFigNodes(figTree.children || [], 0, !!f, f, out);
+  $("figTree").innerHTML = out.join("") ||
+    `<div class="tempty">Sin coincidencias</div>`;
+}
+
+$("figTree").addEventListener("click", (e) => {
+  const row = e.target.closest(".tnode");
+  if (!row) return;
+  const { figpath, figkind, figimg } = row.dataset;
+  if (figkind === "dir") {
+    figExpanded.has(figpath) ? figExpanded.delete(figpath) : figExpanded.add(figpath);
+    renderFigTree(figFilter);
+  } else if (figkind === "file" && figimg === "1") {
+    openImage(figpath);
+  }
+});
+$("figSearch").oninput = (e) => renderFigTree(e.target.value);
+
+// ---------------------------------------------------------------------------
+// Image viewer with zoom + pan
+// ---------------------------------------------------------------------------
+let imgScale = 1, imgX = 0, imgY = 0;
+let imgDragging = false, imgDragStart = null;
+
+function applyImgTransform() {
+  $("imageEl").style.transform = `translate(${imgX}px,${imgY}px) scale(${imgScale})`;
+  $("imageZoomLbl").textContent = `${Math.round(imgScale * 100)}%`;
+}
+
+function resetImgView() {
+  imgScale = 1; imgX = 0; imgY = 0;
+  applyImgTransform();
+}
+
+function openImage(path) {
+  $("imageName").textContent = path;
+  const url = `api/figures/image?path=${encodeURIComponent(path)}`;
+  $("imageDl").href = url;
+  $("imageDl").setAttribute("download", path.split("/").pop());
+  $("imageEl").src = url;
+  resetImgView();
+  $("imageView").style.display = "flex";
+}
+
+function closeImageView() { $("imageView").style.display = "none"; }
+
+const imgBody = $("imageBody");
+
+imgBody.addEventListener("wheel", (e) => {
+  e.preventDefault();
+  const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+  imgScale = Math.max(0.05, Math.min(30, imgScale * factor));
+  applyImgTransform();
+}, { passive: false });
+
+imgBody.addEventListener("pointerdown", (e) => {
+  imgDragging = true;
+  imgDragStart = { x: e.clientX - imgX, y: e.clientY - imgY };
+  imgBody.setPointerCapture(e.pointerId);
+  imgBody.classList.add("dragging");
+});
+imgBody.addEventListener("pointermove", (e) => {
+  if (!imgDragging) return;
+  imgX = e.clientX - imgDragStart.x;
+  imgY = e.clientY - imgDragStart.y;
+  applyImgTransform();
+});
+imgBody.addEventListener("pointerup", () => {
+  imgDragging = false;
+  imgBody.classList.remove("dragging");
+});
+imgBody.addEventListener("dblclick", resetImgView);
+$("imageZoomReset").onclick = resetImgView;
+$("imageClose").onclick = closeImageView;
+$("imageView").addEventListener("click", (e) => {
+  if (e.target.id === "imageView" || e.target.id === "imageBody") closeImageView();
+});
 
 // ---------------------------------------------------------------------------
 function tick() {

@@ -1,0 +1,3 @@
+rdf_peak1_r_A,rdf_peak1_g,coordination_at_cutoff,adf_peak_theta_deg,adf_peak_density,sk_peak_k_invA,sk_peak,label,frame_index,step,time_ps,sp3_percent
+1.503750,5.015307,3.403960,109.500000,0.043406,5.437675,1.849685,initial,0,0,0.000000,38.661312
+1.503750,4.995735,3.403939,109.500000,0.043267,5.437675,1.848903,final,79,2520,2.520000,38.655185

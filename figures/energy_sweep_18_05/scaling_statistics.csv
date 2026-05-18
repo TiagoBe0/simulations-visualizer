@@ -1,0 +1,6 @@
+sp3_target,metric,lin_slope_per_keV,lin_intercept,lin_R2,power_exponent,corr_pearson
+20,peak_n_displaced,,,,,
+20,final_n_displaced,,,,,
+20,delta_sp3_percent,,,,,
+20,max_defect_percent,,,,,
+20,recovery_fraction,,,,,
